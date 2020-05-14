@@ -32,11 +32,11 @@ JQ=$(which jq || :)
 mkdir ${DIR_NAME}
 
 pushd ${DIR_NAME}
-wget -c -nv ${BASE_URL}/${MODEL_NAME}.json -O model.json
+wget --no-check-certificate -c -nv ${BASE_URL}/${MODEL_NAME}.json -O model.json
 cat model.json |
   ${JQ} -r ".weightsManifest | map(.paths) | flatten | @csv" |
-  tr "," "\n" |
-  xargs -I% wget -c ${BASE_URL}/${MODEL_NAME%/*}/%
+  tr "," "\n" | tr -d "\r" |
+  xargs -I% wget --no-check-certificate -c ${BASE_URL}/${MODEL_NAME%/*}/%
 popd
 
 echo "Successfully downloaded to: ${DIR_NAME}"
