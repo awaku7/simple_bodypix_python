@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 import cv2
 import math
-from PIL import Image,ImageFilter
+from PIL import Image,ImageFilter,ImageOps
 from utils import load_graph_model, get_input_tensors, get_output_tensors
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = "3"
 
@@ -19,6 +19,7 @@ def pil2cv(image):
 
 OutputStride = 16
 modelPath = './bodypix_mobilenet_float_050_model-stride16/model.json'
+#modelPath = './bodypix_resnet50_float_model-stride16/model.json'
 
 print("Loading model...", end="")
 graph = load_graph_model(modelPath)
@@ -26,6 +27,10 @@ print("done.\nLoading sample image...", end="")
 
 #capture = cv2.VideoCapture("out.mp4")
 capture = cv2.VideoCapture(0)
+
+input_tensor_names = get_input_tensors(graph)
+output_tensor_names = get_output_tensors(graph)
+input_tensor = graph.get_tensor_by_name(input_tensor_names[0])
 
 sess = tf.compat.v1.Session(graph=graph)
 
@@ -40,10 +45,6 @@ while(capture.isOpened()):
 
 	widthResolution = int((InputImageShape[1] - 1) / OutputStride) + 1
 	heightResolution = int((InputImageShape[0] - 1) / OutputStride) + 1
-
-	input_tensor_names = get_input_tensors(graph)
-	output_tensor_names = get_output_tensors(graph)
-	input_tensor = graph.get_tensor_by_name(input_tensor_names[0])
 
 	if any('resnet_v1' in name for name in output_tensor_names):
 		# add imagenet mean - extracted from body-pix source
@@ -78,7 +79,7 @@ while(capture.isOpened()):
 		else:
 			print('UnknownOutputTensor',name,idx)
 	# Segmentation MASk
-	segmentation_threshold = 0.7
+	segmentation_threshold = 0.1
 	segmentScores = tf.sigmoid(segments)
 	mask = tf.math.greater(segmentScores, tf.constant(segmentation_threshold))
 	segmentationMask = tf.dtypes.cast(mask, tf.int8)
@@ -86,11 +87,14 @@ while(capture.isOpened()):
 
 	# Draw Segmented Output
 	mask_img = Image.fromarray(segmentationMask * 255)
-	mask_img = mask_img.resize((targetWidth, targetHeight), Image.LANCZOS).convert("RGB")
+#	mask_img = mask_img.resize((targetWidth*2, targetHeight*2), Image.LANCZOS).convert("RGB")
+#	mask_img = mask_img.resize((targetWidth, targetHeight), Image.LANCZOS).convert("RGB")
+	mask_img = mask_img.resize((targetWidth, targetHeight), Image.BOX).convert("RGB")
 	mask_img = tf.keras.preprocessing.image.img_to_array(mask_img, dtype=np.uint8)
 #	segmentationMask_inv = np.bitwise_not(mask_img)
 	fg = np.bitwise_and(np.array(image), np.array(mask_img))
 	cv2.imshow("camera",pil2cv(fg))
+#	cv2.imshow("camera",pil2cv(mask_img))
 	if cv2.waitKey(10) > 0:
 		break
 sess.close()
